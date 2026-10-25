@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "User Public Profile",
+      "description": "Publicly visible information for any user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "worker"] },
+        "location": { "type": "object" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "WorkerProfile": {
+      "title": "Worker Service Profile",
+      "description": "Information specific to workers and their services.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "skills": { "type": "array" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "bio": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "hourlyRate": { "type": "number" }
+      },
+      "required": ["uid", "skills", "rating", "isOnline", "hourlyRate"]
+    },
+    "Booking": {
+      "title": "Service Booking",
+      "description": "A record of a service request/booking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "workerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"] },
+        "scheduledTime": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "totalAmount": { "type": "number" }
+      },
+      "required": ["id", "customerId", "workerId", "status", "scheduledTime", "createdAt", "totalAmount"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message sent within a conversation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserPublic",
+      "description": "Public profile documents for all users."
+    },
+    "workers/{workerId}": {
+      "schema": "WorkerProfile",
+      "description": "Service details for workers."
+    },
+    "bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Bookings between customers and workers."
+    },
+    "chats/{chatId}": {
+      "schema": "object",
+      "description": "Conversation metadata."
+    },
+    "chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Individual messages in a chat."
+    }
+  }
+}
