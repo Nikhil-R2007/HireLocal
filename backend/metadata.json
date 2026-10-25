@@ -1,0 +1,6 @@
+{
+  "name": "HireLocal",
+  "description": "A hyperlocal freelance marketplace connecting users with nearby skilled workers in real-time.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
