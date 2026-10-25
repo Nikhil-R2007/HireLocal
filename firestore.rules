@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isVerifiedEmail() { return request.auth.token.email_verified == true; }
+
+    // 2. Validation Helpers
+    function isValidUserPublic(data) {
+      return data.uid == request.auth.uid 
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role in ['customer', 'worker']
+        && data.keys().hasAll(['uid', 'name', 'role'])
+        && data.keys().size() >= 3;
+    }
+
+    function isValidWorkerProfile(data) {
+      return data.uid == request.auth.uid
+        && data.skills is list && data.skills.size() <= 20
+        && data.rating is number && data.rating >= 0 && data.rating <= 5
+        && data.isOnline is bool
+        && data.hourlyRate is number && data.hourlyRate >= 0
+        && data.keys().hasAll(['uid', 'skills', 'rating', 'isOnline', 'hourlyRate']);
+    }
+
+    function isValidBooking(data) {
+      return data.id is string
+        && (data.customerId == request.auth.uid || data.workerId == request.auth.uid)
+        && data.status in ['pending', 'confirmed', 'completed', 'cancelled']
+        && data.scheduledTime is number
+        && data.createdAt is number
+        && data.totalAmount is number
+        && data.keys().hasAll(['id', 'customerId', 'workerId', 'status', 'scheduledTime', 'createdAt', 'totalAmount']);
+    }
+
+    function isValidChatMessage(data) {
+      return data.id is string
+        && data.senderId == request.auth.uid
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 2000
+        && data.createdAt is number
+        && data.keys().hasAll(['id', 'senderId', 'text', 'createdAt']);
+    }
+
+    // 3. Collection Rules
+    
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.uid == userId; 
+      allow create: if isOwner(userId) && isValidUserPublic(incoming());
+      allow update: if isOwner(userId) && isValidUserPublic(incoming()) 
+                     && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'location']);
+    }
+
+    match /workers/{workerId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(workerId) && isValidWorkerProfile(incoming());
+      allow update: if isOwner(workerId) && isValidWorkerProfile(incoming())
+                     && incoming().diff(existing()).affectedKeys().hasOnly(['skills', 'bio', 'isOnline', 'hourlyRate', 'rating', 'reviewCount']);
+    }
+
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn() && (isOwner(existing().customerId) || isOwner(existing().workerId));
+      allow list: if isSignedIn() && (resource.data.customerId == request.auth.uid || resource.data.workerId == request.auth.uid);
+      allow create: if isSignedIn() && isOwner(incoming().customerId) && isValidBooking(incoming());
+      allow update: if isSignedIn() && (isOwner(existing().customerId) || isOwner(existing().workerId)) 
+                     && isValidBooking(incoming())
+                     && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in incoming().participants;
+      
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isSignedIn() && isValidChatMessage(incoming()) && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      }
+    }
+  }
+}
